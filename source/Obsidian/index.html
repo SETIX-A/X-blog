@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian Dataviewjs 统计面板</title>
+    <script src="https://gw.alipayobjects.com/os/lib/tailwindcss/browser/4.1.11/dist/index.global.js"></script>
+    <script src="https://gw.alipayobjects.com/os/lib/chart.js/3.9.1/dist/chart.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #7b68ee;
+            --secondary-color: #6c5ce7;
+            --accent-color: #fd79a8;
+            --background-color: #f8f9fa;
+            --card-bg-color: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --success-color: #00b894;
+            --warning-color: #fdcb6e;
+            --danger-color: #ff7675;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+        .card { background-color: var(--card-bg-color); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); padding: 1.5rem; margin-bottom: 1.5rem; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card:hover { box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); transform: translateY(-2px); }
+        .tab { padding: 0.75rem 1.5rem; border-radius: 8px 8px 0 0; cursor: pointer; transition: background-color 0.2s ease; font-weight: 500; }
+        .tab.active { background-color: var(--card-bg-color); color: var(--primary-color); border-bottom: 2px solid var(--primary-color); }
+        .tab:hover:not(.active) { background-color: rgba(123, 104, 238, 0.1); }
+        .btn { padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s ease; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover { background-color: var(--secondary-color); }
+        .btn-outline { border: 1px solid var(--border-color); background-color: transparent; }
+        .btn-outline:hover { background-color: rgba(0, 0, 0, 0.05); }
+        .progress-bar { height: 8px; background-color: #e0e0e0; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .progress-normal { background-color: var(--success-color); }
+        .progress-warning { background-color: var(--warning-color); }
+        .progress-danger { background-color: var(--danger-color); }
+        .tag-cloud { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .tag { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; background-color: rgba(123, 104, 238, 0.1); color: var(--primary-color); }
+        .stat-card { padding: 1rem; border-radius: 8px; background-color: rgba(123, 104, 238, 0.05); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--primary-color); margin-bottom: 0.25rem; }
+        .stat-label { font-size: 0.875rem; color: var(--text-secondary); }
+        .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+        .month-title { font-size: 1.25rem; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background-color: rgba(123, 104, 238, 0.05); }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { font-weight: 600; }
+        .collapsible-section { margin-bottom: 1rem; }
+        .collapsible-header { padding: 0.75rem; background-color: rgba(123, 104, 238, 0.05); border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
+        .collapsible-content { padding: 1rem 0; display: none; }
+        .collapsible-content.show { display: block; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+        .badge-success { background-color: rgba(0, 184, 148, 0.1); color: var(--success-color); }
+        .badge-warning { background-color: rgba(253, 203, 110, 0.1); color: var(--warning-color); }
+        .badge-danger { background-color: rgba(255, 118, 117, 0.1); color: var(--danger-color); }
+        @media (max-width: 768px) {
+            .container { padding: 0.5rem; }
+            .card { padding: 1rem; }
+            .tab { padding: 0.5rem 1rem; }
+            .grid-cols-3 { grid-template-columns: 1fr; }
+            .grid-cols-4 { grid-template-columns: 1fr 1fr; }
+            .month-title { font-size: 1rem; }
+            th, td { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="mb-6">
+            <h1 class="text-2xl font-bold mb-2">Obsidian Dataviewjs 统计面板</h1>
+            <p class="text-gray-600">全方位了解您的笔记库统计信息与使用情况</p>
+        </header>
+
+        <div class="flex border-b border-gray-200 mb-4">
+            <div class="tab active" data-tab="month">月度视图</div>
+            <div class="tab" data-tab="year">年度视图</div>
+            <div class="tab" data-tab="budget">预算管理</div>
+            <div class="tab" data-tab="stats">数据统计</div>
+            <div class="ml-auto">
+                <button class="btn btn-outline" id="settingsBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/></svg>
+                    <span class="ml-2">设置</span>
+                </button>
+            </div>
+        </div>
+        <!-- 月度视图 -->
+        <div class="tab-content" id="monthView">
+            <div class="month-nav">
+                <button class="btn btn-outline" id="prevMonth"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/></svg></button>
+                <h2 class="month-title" id="currentMonth">2023年4月</h2>
+                <button class="btn btn-outline" id="nextMonth"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/></svg></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="card"><h3 class="text-lg font-semibold mb-4">笔记创建/修改趋势</h3><div style="height: 300px;"><canvas id="monthlyTrendChart"></canvas></div></div>
+                <div class="card"><h3 class="text-lg font-semibold mb-4">每日活动热图</h3><div style="height: 300px;"><canvas id="dailyActivityChart"></canvas></div></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card"><div class="stat-value">32</div><div class="stat-label">新建笔记</div></div>
+                <div class="stat-card"><div class="stat-value">78</div><div class="stat-label">修改笔记</div></div>
+                <div class="stat-card"><div class="stat-value">15</div><div class="stat-label">使用标签</div></div>
+                <div class="stat-card"><div class="stat-value">24</div><div class="stat-label">活跃天数</div></div>
+            </div>
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4">月度标签使用频率</h3>
+                <div class="tag-cloud mb-4">
+                    <div class="tag">工作 (12)</div><div class="tag">学习 (8)</div><div class="tag">项目 (7)</div><div class="tag">会议 (6)</div><div class="tag">想法 (5)</div><div class="tag">任务 (4)</div><div class="tag">日记 (4)</div><div class="tag">笔记 (3)</div>
+                </div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header"><span>查看详细标签分析</span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="collapsible-icon"><path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/></svg></div>
+                    <div class="collapsible-content">
+                        <table>
+                            <thead><tr><th>标签名</th><th>使用次数</th><th>占比</th><th>变化趋势</th></tr></thead>
+                            <tbody>
+                                <tr><td>工作</td><td>12</td><td>24.5%</td><td><span class="badge badge-success">↑ 15%</span></td></tr>
+                                <tr><td>学习</td><td>8</td><td>16.3%</td><td><span class="badge badge-success">↑ 8%</span></td></tr>
+                                <tr><td>项目</td><td>7</td><td>14.3%</td><td><span class="badge badge-warning">↓ 3%</span></td></tr>
+                                <tr><td>会议</td><td>6</td><td>12.2%</td><td><span class="badge badge-success">↑ 20%</span></td></tr>
+                                <tr><td>想法</td><td>5</td><td>10.2%</td><td><span class="badge badge-success">↑ 5%</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 年度视图 -->
+        <div class="tab-content hidden" id="yearView">
+            <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-semibold">年度数据概览</h2><select id="yearSelect" class="px-4 py-2 border rounded"><option value="2023">2023年</option><option value="2022">2022年</option><option value="2021">2021年</option></select></div>
+            <div class="card mb-6"><h3 class="text-lg font-semibold mb-4">年度笔记增长趋势</h3><div style="height: 300px;"><canvas id="yearlyTrendChart"></canvas></div></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="card"><h3 class="text-lg font-semibold mb-4">季度笔记分布</h3><div style="height: 250px;"><canvas id="quarterlyDistributionChart"></canvas></div></div>
+                <div class="card"><h3 class="text-lg font-semibold mb-4">年度活跃度热图</h3><div style="height: 250px;"><canvas id="yearlyActivityHeatmap"></canvas></div></div>
+            </div>
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4">年度标签云</h3>
+                <div class="tag-cloud mb-4">
+                    <div class="tag" style="font-size: 1.2rem;">工作 (145)</div><div class="tag" style="font-size: 1.1rem;">学习 (112)</div><div class="tag" style="font-size: 1rem;">项目 (98)</div><div class="tag" style="font-size: 0.95rem;">会议 (85)</div><div class="tag" style="font-size: 0.9rem;">想法 (76)</div><div class="tag" style="font-size: 0.85rem;">任务 (64)</div><div class="tag" style="font-size: 0.85rem;">日记 (62)</div><div class="tag" style="font-size: 0.8rem;">笔记 (57)</div><div class="tag" style="font-size: 0.8rem;">书籍 (51)</div><div class="tag" style="font-size: 0.75rem;">灵感 (45)</div><div class="tag" style="font-size: 0.75rem;">研究 (42)</div><div class="tag" style="font-size: 0.7rem;">问题 (38)</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4">年度关键指标</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="stat-card"><div class="stat-value">487</div><div class="stat-label">新建笔记总数</div></div>
+                    <div class="stat-card"><div class="stat-value">1253</div><div class="stat-label">修改次数</div></div>
+                    <div class="stat-card"><div class="stat-value">42</div><div class="stat-label">使用标签数</div></div>
+                    <div class="stat-card"><div class="stat-value">263</div><div class="stat-label">活跃天数</div></div>
+                    <div class="stat-card"><div class="stat-value">3.4</div><div class="stat-label">日均创建笔记</div></div>
+                    <div class="stat-card"><div class="stat-value">72%</div><div class="stat-label">年度活跃率</div></div>
+                    <div class="stat-card"><div class="stat-value">15.8MB</div><div class="stat-label">新增内容大小</div></div>
+                    <div class="stat-card"><div class="stat-value">24</div><div class="stat-label">最活跃文件夹</div></div>
+                </div>
+            </div>
+        </div>
+        <!-- 预算管理 -->
+        <div class="tab-content hidden" id="budgetView">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="card col-span-1 md:col-span-2">
+                    <h3 class="text-lg font-semibold mb-4">预算使用情况</h3>
+                    <div class="mb-4">
+                        <div class="flex justify-between mb-2"><span>当前使用：¥1,850 / ¥2,500</span><span class="text-warning-500">74%</span></div>
+                        <div class="progress-bar"><div class="progress-fill progress-warning" style="width: 74%"></div></div>
+                    </div>
+                    <div style="height: 250px;"><canvas id="budgetUsageChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-semibold mb-4">预算设置</h3>
+                    <form id="budgetForm">
+                        <div class="mb-4"><label class="block text-sm font-medium mb-1">月度总预算</label><input type="number" class="w-full px-3 py-2 border rounded" id="totalBudget" value="2500"></div>
+                        <div class="mb-4"><label class="block text-sm font-medium mb-1">警告阈值 (%)</label><input type="number" class="w-full px-3 py-2 border rounded" id="warningThreshold" value="70"></div>
+                        <div class="mb-4"><label class="block text-sm font-medium mb-1">危险阈值 (%)</label><input type="number" class="w-full px-3 py-2 border rounded" id="dangerThreshold" value="90"></div>
+                        <button type="submit" class="btn btn-primary w-full">保存设置</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4">预算使用明细</h3>
+                <table>
+                    <thead><tr><th>类别</th><th>金额</th><th>占比</th><th>状态</th></tr></thead>
+                    <tbody>
+                        <tr><td>食品</td><td>¥850</td><td>46%</td><td><span class="badge badge-success">正常</span></td></tr>
+                        <tr><td>交通</td><td>¥350</td><td>19%</td><td><span class="badge badge-success">正常</span></td></tr>
+                        <tr><td>娱乐</td><td>¥450</td><td>24%</td><td><span class="badge badge-warning">接近预算</span></td></tr>
+                        <tr><td>其他</td><td>¥200</td><td>11%</td><td><span class="badge badge-success">正常</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4">预算趋势分析</h3>
+                <div style="height: 300px;"><canvas id="budgetTrendChart"></canvas></div>
+            </div>
+        </div>
+        <!-- 数据统计 -->
+        <div class="tab-content hidden" id="statsView">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="card">
+                    <h3 class="text-lg font-semibold mb-4">笔记库概览</h3>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="stat-card"><div class="stat-value">1,253</div><div class="stat-label">笔记总数</div></div>
+                        <div class="stat-card"><div class="stat-value">156</div><div class="stat-label">标签总数</div></div>
+                        <div class="stat-card"><div class="stat-value">42</div><div class="stat-label">文件夹数</div></div>
+                        <div class="stat-card"><div class="stat-value">86.5MB</div><div class="stat-label">总容量</div></div>
+                    </div>
+                    <div class="mb-2"><div class="flex justify-between"><span>笔记类型分布</span></div></div>
+                    <div style="height: 200px;"><canvas id="noteTypesChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-semibold mb-4">最近更新</h3>
+                    <table>
+                        <thead><tr><th>笔记名称</th><th>更新时间</th></tr></thead>
+                        <tbody>
+                            <tr><td>项目计划.md</td><td>今天 14:32</td></tr>
+                            <tr><td>会议记录.md</td><td>今天 11:15</td></tr>
+                            <tr><td>学习笔记.md</td><td>昨天 18:42</td></tr>
+                            <tr><td>想法收集.md</td><td>昨天 15:30</td></tr>
+                            <tr><td>工作日志.md</td><td>2天前</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card mb-6"><h3 class="text-lg font-semibold mb-4">标签使用频率排行</h3><div style="height: 300px;"><canvas id="tagFrequencyChart"></canvas></div></div>
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-4">文件大小分析</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-medium mb-2">最大的5个文件</h4>
+                        <table>
+                            <thead><tr><th>文件名</th><th>大小</th></tr></thead>
+                            <tbody>
+                                <tr><td>项目文档.md</td><td>2.4MB</td></tr>
+                                <tr><td>研究报告.md</td><td>1.8MB</td></tr>
+                                <tr><td>学习笔记.md</td><td>1.5MB</td></tr>
+                                <tr><td>会议记录.md</td><td>1.2MB</td></tr>
+                                <tr><td>想法收集.md</td><td>0.9MB</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2">文件夹大小分布</h4>
+                        <div style="height: 200px;"><canvas id="folderSizeChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 设置面板 -->
+        <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">设置</h3>
+                    <button id="closeSettings" class="text-gray-500 hover:text-gray-700"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg></button>
+                </div>
+                <form id="settingsForm">
+                    <div class="mb-4"><label class="block text-sm font-medium mb-1">默认视图</label><select class="w-full px-3 py-2 border rounded" id="defaultView"><option value="month">月度视图</option><option value="year">年度视图</option><option value="budget">预算管理</option><option value="stats">数据统计</option></select></div>
+                    <div class="mb-4"><label class="block text-sm font-medium mb-1">数据自动刷新间隔</label><select class="w-full px-3 py-2 border rounded" id="refreshInterval"><option value="0">手动刷新</option><option value="60">1分钟</option><option value="300">5分钟</option><option value="600">10分钟</option><option value="1800">30分钟</option></select></div>
+                    <div class="mb-4"><label class="flex items-center"><input type="checkbox" id="showTags" class="mr-2"><span>显示标签统计</span></label></div>
+                    <div class="mb-4"><label class="flex items-center"><input type="checkbox" id="showFileSizes" class="mr-2"><span>显示文件大小</span></label></div>
+                    <div class="mb-4"><label class="block text-sm font-medium mb-1">数据导出格式</label><select class="w-full px-3 py-2 border rounded" id="exportFormat"><option value="json">JSON</option><option value="csv">CSV</option><option value="markdown">Markdown</option></select></div>
+                    <div class="flex justify-between"><button type="button" id="resetSettings" class="btn btn-outline">重置默认</button><button type="submit" class="btn btn-primary">保存设置</button></div>
+                </form>
+            </div>
+        </div>
+        <footer class="mt-8 text-center text-gray-500 text-sm"><p>最后更新: <span id="lastUpdated">2023-04-12 15:30</span> | <button id="refreshData" class="text-primary-500 hover:underline">刷新数据</button></p></footer>
+    </div>
+
+    <!-- SCRIPT SECTION: THIS IS THE ONLY PART THAT HAS BEEN MODIFIED -->
+    <script>
+    (function() {
+        "use strict";
+
+        // All original functions remain here, unchanged.
+        function initCharts() {
+            const monthlyTrendCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+            new Chart(monthlyTrendCtx, { type: 'line', data: { labels: ['1日', '5日', '10日', '15日', '20日', '25日', '30日'], datasets: [{ label: '创建笔记', data: [3, 5, 2, 7, 4, 6, 5], borderColor: '#7b68ee', backgroundColor: 'rgba(123, 104, 238, 0.1)', tension: 0.4, fill: true }, { label: '修改笔记', data: [5, 8, 6, 12, 9, 11, 7], borderColor: '#fd79a8', backgroundColor: 'rgba(253, 121, 168, 0.1)', tension: 0.4, fill: true }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false, } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+            const dailyActivityCtx = document.getElementById('dailyActivityChart').getContext('2d');
+            new Chart(dailyActivityCtx, { type: 'bar', data: { labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'], datasets: [{ label: '活动量', data: [12, 19, 15, 8, 22, 14, 6], backgroundColor: ['rgba(123, 104, 238, 0.6)', 'rgba(123, 104, 238, 0.7)', 'rgba(123, 104, 238, 0.5)', 'rgba(123, 104, 238, 0.3)', 'rgba(123, 104, 238, 0.8)', 'rgba(123, 104, 238, 0.5)', 'rgba(123, 104, 238, 0.2)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
+            const yearlyTrendCtx = document.getElementById('yearlyTrendChart').getContext('2d');
+            new Chart(yearlyTrendCtx, { type: 'line', data: { labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], datasets: [{ label: '笔记总数', data: [120, 145, 175, 210, 245, 280, 320, 350, 390, 425, 460, 487], borderColor: '#7b68ee', backgroundColor: 'rgba(123, 104, 238, 0.1)', tension: 0.4, fill: true }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: false } } } });
+            const quarterlyDistributionCtx = document.getElementById('quarterlyDistributionChart').getContext('2d');
+            new Chart(quarterlyDistributionCtx, { type: 'pie', data: { labels: ['第一季度', '第二季度', '第三季度', '第四季度'], datasets: [{ data: [175, 105, 140, 67], backgroundColor: ['rgba(123, 104, 238, 0.7)', 'rgba(253, 121, 168, 0.7)', 'rgba(0, 184, 148, 0.7)', 'rgba(253, 203, 110, 0.7)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
+            const yearlyActivityCtx = document.getElementById('yearlyActivityHeatmap').getContext('2d');
+            new Chart(yearlyActivityCtx, { type: 'bar', data: { labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], datasets: [{ label: '活跃天数', data: [22, 19, 24, 21, 25, 23, 28, 26, 24, 27, 22, 23], backgroundColor: 'rgba(123, 104, 238, 0.6)', borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 31 } } } });
+            const budgetUsageCtx = document.getElementById('budgetUsageChart').getContext('2d');
+            new Chart(budgetUsageCtx, { type: 'doughnut', data: { labels: ['食品', '交通', '娱乐', '其他', '剩余预算'], datasets: [{ data: [850, 350, 450, 200, 650], backgroundColor: ['rgba(123, 104, 238, 0.7)', 'rgba(253, 121, 168, 0.7)', 'rgba(253, 203, 110, 0.7)', 'rgba(0, 184, 148, 0.7)', 'rgba(230, 230, 230, 0.7)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
+            const budgetTrendCtx = document.getElementById('budgetTrendChart').getContext('2d');
+            new Chart(budgetTrendCtx, { type: 'line', data: { labels: ['1日', '5日', '10日', '15日', '20日', '25日', '30日'], datasets: [{ label: '累计支出', data: [250, 600, 850, 1200, 1450, 1650, 1850], borderColor: '#7b68ee', backgroundColor: 'rgba(123, 104, 238, 0.1)', tension: 0.4, fill: true }, { label: '预算线', data: [83, 415, 830, 1245, 1660, 2075, 2500], borderColor: '#fd79a8', borderDash: [5, 5], tension: 0, fill: false }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } } });
+            const noteTypesCtx = document.getElementById('noteTypesChart').getContext('2d');
+            new Chart(noteTypesCtx, { type: 'doughnut', data: { labels: ['Markdown', '图片', 'PDF', '其他'], datasets: [{ data: [850, 230, 120, 53], backgroundColor: ['rgba(123, 104, 238, 0.7)', 'rgba(253, 121, 168, 0.7)', 'rgba(0, 184, 148, 0.7)', 'rgba(253, 203, 110, 0.7)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
+            const tagFrequencyCtx = document.getElementById('tagFrequencyChart').getContext('2d');
+            new Chart(tagFrequencyCtx, { type: 'bar', data: { labels: ['工作', '学习', '项目', '会议', '想法', '任务', '日记', '书籍', '研究', '问题'], datasets: [{ label: '使用次数', data: [145, 112, 98, 85, 76, 64, 62, 51, 42, 38], backgroundColor: 'rgba(123, 104, 238, 0.7)', borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true } } } });
+            const folderSizeCtx = document.getElementById('folderSizeChart').getContext('2d');
+            new Chart(folderSizeCtx, { type: 'pie', data: { labels: ['工作', '学习', '项目', '日记', '其他'], datasets: [{ data: [35.2, 22.8, 15.5, 8.4, 4.6], backgroundColor: ['rgba(123, 104, 238, 0.7)', 'rgba(253, 121, 168, 0.7)', 'rgba(0, 184, 148, 0.7)', 'rgba(253, 203, 110, 0.7)', 'rgba(108, 92, 231, 0.7)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
+        }
+        function initApp() {
+            loadSettings();
+            initCharts();
+            updateCurrentMonth();
+            initCollapsibleSections();
+            updateLastUpdated();
+        }
+        function loadSettings() {
+            const settings = JSON.parse(localStorage.getItem('obsidianStatsSettings')) || { defaultView: 'month', refreshInterval: '0', showTags: true, showFileSizes: true, exportFormat: 'json' };
+            document.getElementById('defaultView').value = settings.defaultView;
+            document.getElementById('refreshInterval').value = settings.refreshInterval;
+            document.getElementById('showTags').checked = settings.showTags;
+            document.getElementById('showFileSizes').checked = settings.showFileSizes;
+            document.getElementById('exportFormat').value = settings.exportFormat;
+            showTab(settings.defaultView);
+        }
+        function saveSettings() {
+            const settings = {
+                defaultView: document.getElementById('defaultView').value,
+                refreshInterval: document.getElementById('refreshInterval').value,
+                showTags: document.getElementById('showTags').checked,
+                showFileSizes: document.getElementById('showFileSizes').checked,
+                exportFormat: document.getElementById('exportFormat').value
+            };
+            localStorage.setItem('obsidianStatsSettings', JSON.stringify(settings));
+        }
+        function resetSettings() {
+            const defaultSettings = { defaultView: 'month', refreshInterval: '0', showTags: true, showFileSizes: true, exportFormat: 'json' };
+            document.getElementById('defaultView').value = defaultSettings.defaultView;
+            document.getElementById('refreshInterval').value = defaultSettings.refreshInterval;
+            document.getElementById('showTags').checked = defaultSettings.showTags;
+            document.getElementById('showFileSizes').checked = defaultSettings.showFileSizes;
+            document.getElementById('exportFormat').value = defaultSettings.exportFormat;
+            localStorage.setItem('obsidianStatsSettings', JSON.stringify(defaultSettings));
+        }
+        function updateCurrentMonth() {
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            document.getElementById('currentMonth').textContent = `${year}年${month}月`;
+        }
+        function changeMonth(delta) {
+            const currentText = document.getElementById('currentMonth').textContent;
+            const [year, month] = currentText.replace(/[年月]/g, '-').split('-').filter(Boolean).map(Number);
+            let newMonth = month + delta;
+            let newYear = year;
+            if (newMonth > 12) { newMonth = 1; newYear++; } else if (newMonth < 1) { newMonth = 12; newYear--; }
+            document.getElementById('currentMonth').textContent = `${newYear}年${newMonth}月`;
+        }
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => { content.classList.add('hidden'); });
+            document.querySelectorAll('.tab').forEach(tab => { tab.classList.remove('active'); });
+            const tabContent = document.getElementById(`${tabId}View`);
+            const tabButton = document.querySelector(`.tab[data-tab="${tabId}"]`);
+            if (tabContent) tabContent.classList.remove('hidden');
+
+            if (tabButton) tabButton.classList.add('active');
+        }
+        function initCollapsibleSections() {
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    content.classList.toggle('show');
+                    const icon = this.querySelector('.collapsible-icon');
+                    if (content.classList.contains('show')) {
+                        icon.innerHTML = '<path fill-rule="evenodd" d="M1.646 11.354a.5.5 0 0 0 .708 0L8 5.707l5.646 5.647a.5.5 0 0 0 .708-.708l-6-6a.5.5 0 0 0-.708 0l-6 6a.5.5 0 0 0 0 .708z"/>';
+                    } else {
+                        icon.innerHTML = '<path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>';
+                    }
+                });
+            });
+        }
+        function updateLastUpdated() {
+            const now = new Date();
+            const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            document.getElementById('lastUpdated').textContent = formattedDate;
+        }
+        function refreshData() {
+            updateLastUpdated();
+            alert('数据已刷新');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initApp();
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() { showTab(this.dataset.tab); });
+            });
+            document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+            document.getElementById('yearSelect').addEventListener('change', () => {});
+            document.getElementById('budgetForm').addEventListener('submit', e => { e.preventDefault(); alert('预算设置已保存'); });
+            document.getElementById('refreshData').addEventListener('click', refreshData);
+            
+            // --- Robust Modal Handling ---
+            const settingsModal = document.getElementById('settingsModal');
+            const settingsBtn = document.getElementById('settingsBtn');
+            const closeSettingsBtn = document.getElementById('closeSettings');
+            const settingsForm = document.getElementById('settingsForm');
+            const resetSettingsBtn = document.getElementById('resetSettings');
+
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+            }
+            if (closeSettingsBtn) {
+                closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+            }
+            if (settingsModal) {
+                settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+            }
+            if (settingsForm) {
+                settingsForm.addEventListener('submit', e => {
+                    e.preventDefault();
+                    saveSettings();
+                    settingsModal.classList.add('hidden');
+                    alert('设置已保存');
+                });
+            }
+            if (resetSettingsBtn) {
+                resetSettingsBtn.addEventListener('click', () => { resetSettings(); alert('设置已重置为默认值'); });
+            }
+        });
+
+    })();
+    </script>
+</body>
+</html>
