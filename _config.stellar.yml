@@ -47,6 +47,10 @@ style:
     code: '"LXGW WenKai Screen", Menlo, Monaco, Consolas, system-ui, "Courier New", monospace, sans-serif'
     codeblock: 'Menlo, Monaco, Consolas, system-ui, "Courier New", monospace, sans-serif'
 
+comments:
+  service: utterances
+  utterances:
+    repo: SETIX-A/X-blog
 footer:
    content: | # 支持 Markdown 格式
     本站由 [{author.name}](/) 使用 [{theme.name}]({theme.tree}) 主题创建。
